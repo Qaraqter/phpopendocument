@@ -10,8 +10,15 @@ use OpenDocument\Twig\OpenDocumentLoader;
  *
  * @author Bart Huttinga <bart@qaraqter.nl>
  */
-class File
+class Document
 {
+    /**
+     * Generator instance.
+     *
+     * @var Generator
+     */
+    private $generator;
+
     /**
      * The filename of the Open Document file.
      *
@@ -26,94 +33,73 @@ class File
      */
     private $archive;
 
-    /**
-     * The Twig environment used for rendering the template.
-     *
-     * @var \Twig_Environment
-     */
-    private $twig;
-
     protected $contentXml;        // To store content of content.xml file
     protected $stylesXml;       // To store content of styles.xml file
-    protected $tmpfile;
+    protected $tmpFile;
     protected $images = array();
     protected $vars = array();
-
-    /**
-     * Class constructor
-     *
-     * @param string $filename File name of the ODT file
-     * @param string $cacheDir Path to cache directory
-     *
-     * @throws \RunTimeException
-     */
-    public function __construct($filename, $cacheDir)
-    {
-        if (!class_exists('\ZipArchive')) {
-            throw new \RunTimeException('Class \ZipArchive is required, but could not be found.');
-        }
-
-        $this->archive = new \ZipArchive();
-        if (!$this->archive->open($filename)) {
-            throw new \RunTimeException('Could not open file ' . $filename);
-        }
-
-        $this->contentXml = $this->archive->getFromName('content.xml');
-        if (!$this->contentXml) {
-            throw new \RunTimeException('An error occured while reading content.xml from the archive.');
-        }
-        $this->archive->close();
-
-        $this->filename = $filename;
-        $this->setCacheDir($cacheDir);
-    }
 
     /**
      * Deletes the temporary file.
      */
     public function __destruct()
     {
-        if (file_exists($this->tmpfile)) {
-            unlink($this->tmpfile);
+        if (file_exists($this->tmpFile)) {
+//             unlink($this->tmpFile);
         }
     }
 
     /**
-     * Initializes and returns a configured Twig environment.
+     * Class constructor
      *
-     * @return \Twig_Environment
+     * @param string $filename File name of the ODT file
+     *
+     * @throws \RunTimeException
      */
-    private function getTwigEnvironment()
+    public function __construct(Generator $generator)
     {
-        if (!$this->twig) {
-            $loader = new OpenDocumentLoader($this->cacheDir);
-            $twig   = new \Twig_Environment($loader, array('cache' => $this->cacheDir));
+        $this->generator  = $generator;
+        $this->template   = $generator->getTemplate();
+        $this->contentXml = $this->template->getContentXml();
 
-            // add OpenDocument extension
-            $extension = new Twig\OpenDocumentExtension();
-            $twig->addExtension($extension);
+        // create copy of template
+        $this->cacheDir = $generator->getCacheDir();
+        $templateFilename = $this->template->getFileName();
+        $this->tmpFile = tempnam($this->cacheDir, md5($templateFilename));
+        copy($templateFilename, $this->tmpFile);
 
-            $this->twig = $twig;
-        }
-
-        return $this->twig;
+        $this->archive = new \ZipArchive();
     }
 
-    public function render(array $params = array())
+    public function render($data = array())
     {
-        $twig = $this->getTwigEnvironment();
+        $twig       = $this->generator->getTwig();
+        $cacheDir   = $this->generator->getCacheDir();
 
         // put XML template in temp file
         $template = md5($this->contentXml);
-        file_put_contents("$this->cacheDir/$template", $this->contentXml);
+        file_put_contents("$cacheDir/$template", $this->contentXml);
 
         // render template with given parameters
-        $this->contentXml = $twig->render($template, $params);
+        $this->contentXml = $twig->render($template, $data);
     }
 
     public function getCacheDir()
     {
         return $this->cacheDir;
+    }
+
+    public function save($filename)
+    {
+        $this->filename = $this->tmpFile;
+        $this->saveToDisk($filename);
+
+        return $this;
+    }
+
+    public function getFilename()
+    {
+        return $this->filename;
     }
 
     /**
@@ -130,7 +116,7 @@ class File
                 throw new OdfException('Permission denied : can\'t create ' . $file);
             }
             $this->_save();
-            copy($this->tmpfile, $file);
+//             copy($this->tmpFile, $file);
         } else {
             $this->_save();
         }
@@ -143,18 +129,14 @@ class File
      */
     private function _save()
     {
-        // create copy of original file
-        $this->tmpfile = tempnam($this->cacheDir, md5($this->filename));
-        copy($this->filename, $this->tmpfile);
-
         // open temporary archive and put rendered in it
-        $this->archive->open($this->tmpfile);
+        $this->archive->open($this->tmpFile);
         if (!$this->archive->addFromString('content.xml', $this->contentXml)) {
              throw new \RuntimeException('An error occured while writing the rendered XML.');
         }
 
         // add images to Pictures directory
-        $images = $this->getTwigEnvironment()->getExtension('open_document')->getImages();
+        $images = $this->generator->getTwig()->getExtension('open_document')->getImages();
         foreach ($images as $image) {
             $this->archive->addFile("$this->cacheDir/$image", "Pictures/$image");
         }
@@ -200,6 +182,6 @@ class File
 
         header('Content-type: application/vnd.oasis.opendocument.text');
         header('Content-Disposition: attachment; filename="'.$name.'"');
-        readfile($this->tmpfile);
+        readfile($this->tmpFile);
     }
 }

@@ -51,7 +51,12 @@ class OpenDocumentExtension extends \Twig_Extension
 
         $filename = realpath($filename);
         if (!$filename) {
+            return;
             throw new FileNotFoundException("File $filename not found");
+        }
+
+        if (!is_file($filename)) {
+            return;
         }
 
         $pattern = '/^(scale|[0-9.]+(cm|%))$/';

@@ -3,8 +3,6 @@ namespace OpenDocument\Twig;
 
 class OpenDocumentLoader extends \Twig_Loader_Filesystem
 {
-//     private $lastTemplate;
-
     /**
      * {@inheritdoc}
      */

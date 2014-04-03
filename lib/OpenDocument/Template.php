@@ -10,8 +10,15 @@ use OpenDocument\Twig\OpenDocumentLoader;
  *
  * @author Bart Huttinga <bart@qaraqter.nl>
  */
-class File
+class Template
 {
+    /**
+     * Generator instance.
+     *
+     * @var Generator
+     */
+    private $generator;
+
     /**
      * The filename of the Open Document file.
      *
@@ -26,13 +33,6 @@ class File
      */
     private $archive;
 
-    /**
-     * The Twig environment used for rendering the template.
-     *
-     * @var \Twig_Environment
-     */
-    private $twig;
-
     protected $contentXml;        // To store content of content.xml file
     protected $stylesXml;       // To store content of styles.xml file
     protected $tmpfile;
@@ -43,11 +43,10 @@ class File
      * Class constructor
      *
      * @param string $filename File name of the ODT file
-     * @param string $cacheDir Path to cache directory
      *
      * @throws \RunTimeException
      */
-    public function __construct($filename, $cacheDir)
+    public function __construct(Generator $generator, $filename)
     {
         if (!class_exists('\ZipArchive')) {
             throw new \RunTimeException('Class \ZipArchive is required, but could not be found.');
@@ -64,8 +63,8 @@ class File
         }
         $this->archive->close();
 
-        $this->filename = $filename;
-        $this->setCacheDir($cacheDir);
+        $this->generator = $generator;
+        $this->filename  = $filename;
     }
 
     /**
@@ -78,42 +77,19 @@ class File
         }
     }
 
-    /**
-     * Initializes and returns a configured Twig environment.
-     *
-     * @return \Twig_Environment
-     */
-    private function getTwigEnvironment()
+    public function getContentXml()
     {
-        if (!$this->twig) {
-            $loader = new OpenDocumentLoader($this->cacheDir);
-            $twig   = new \Twig_Environment($loader, array('cache' => $this->cacheDir));
-
-            // add OpenDocument extension
-            $extension = new Twig\OpenDocumentExtension();
-            $twig->addExtension($extension);
-
-            $this->twig = $twig;
-        }
-
-        return $this->twig;
-    }
-
-    public function render(array $params = array())
-    {
-        $twig = $this->getTwigEnvironment();
-
-        // put XML template in temp file
-        $template = md5($this->contentXml);
-        file_put_contents("$this->cacheDir/$template", $this->contentXml);
-
-        // render template with given parameters
-        $this->contentXml = $twig->render($template, $params);
+        return $this->contentXml;
     }
 
     public function getCacheDir()
     {
         return $this->cacheDir;
+    }
+
+    public function getFilename()
+    {
+        return $this->filename;
     }
 
     /**
