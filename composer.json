@@ -1,20 +1,20 @@
 {
-	"name" : "barthuttinga/phpopendocument",
+	"name" : "qaraqter/phpopendocument",
 	"type" : "library",
-	"description" : "PHP library for creating and manipulating Open Document files",
+	"description" : "PHP library for generating Open Documents",
 	"keywords" : [
-		"highcharts",
+		"open document",
 		"php"
 	],
 	"license" : "MIT",
 	"authors" : [{
 			"name" : "Bart Huttinga",
-			"email" : "barthuttinga@gmail.com"
+			"email" : "bart@qaraqter.nl"
 		}
 	],
 	"autoload" : {
 		"psr-0" : {
-			"PhpHighCharts\\" : "lib/barthuttinga/"
+			"PhpHighCharts\\" : "lib/"
 		}
 	}
 }
