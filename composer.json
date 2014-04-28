@@ -16,5 +16,8 @@
 		"psr-0" : {
 			"OpenDocument\\" : "lib/"
 		}
+	},
+	"require": {
+		"twig/twig": "1.*"
 	}
 }
