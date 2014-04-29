@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content
+    xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0"
+    xmlns:table="urn:oasis:names:tc:opendocument:xmlns:table:1.0"
+    xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+    <office:body>
+        <office:text text:use-soft-page-breaks="true">
+            <text:p text:style-name="P2">{% for groupTitle,fields in groups2 %}{{groupTitle}}</text:p>
+            <table:table table:name="Table1" table:style-name="Table1">
+                <table:table-column table:style-name="Table1.A" />
+                <table:table-column table:style-name="Table1.B" />
+                <table:table-row>
+                    <table:table-cell table:style-name="Table1.A1" office:value-type="string">
+                        <text:p text:style-name="Text_20_body">{% for field in fields %}{{field.label}}</text:p>
+                    </table:table-cell>
+                    <table:table-cell table:style-name="Table1.B1" office:value-type="string">
+                        <text:p text:style-name="Text_20_body">{{field.value}}{% endfor %}</text:p>
+                    </table:table-cell>
+                </table:table-row>
+            </table:table>
+            <text:p text:style-name="Text_20_body">{% endfor %}</text:p>
+        </office:text>
+    </office:body>
+</office:document-content>
