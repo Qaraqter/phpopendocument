@@ -61,6 +61,7 @@ class Document
         $this->generator  = $generator;
         $this->template   = $generator->getTemplate();
         $this->contentXml = $this->template->getContentXml();
+        $this->stylesXml  = $this->template->getStylesXml();
 
         // create copy of template
         $this->cacheDir = $generator->getCacheDir();
@@ -76,12 +77,15 @@ class Document
         $twig       = $this->generator->getTwig();
         $cacheDir   = $this->generator->getCacheDir();
 
-        // put XML template in temp file
+        // render content
         $template = md5($this->contentXml);
         file_put_contents("$cacheDir/$template", $this->contentXml);
-
-        // render template with given parameters
         $this->contentXml = $twig->render($template, $data);
+
+        // render styles
+        $template = md5($this->stylesXml);
+        file_put_contents("$cacheDir/$template", $this->stylesXml);
+        $this->stylesXml = $twig->render($template, $data);
     }
 
     public function getCacheDir()
@@ -132,7 +136,10 @@ class Document
         // open temporary archive and put rendered in it
         $this->archive->open($this->tmpFile);
         if (!$this->archive->addFromString('content.xml', $this->contentXml)) {
-             throw new \RuntimeException('An error occured while writing the rendered XML.');
+             throw new \RuntimeException('An error occured while writing the rendered content XML.');
+        }
+        if (!$this->archive->addFromString('styles.xml', $this->stylesXml)) {
+            throw new \RuntimeException('An error occured while writing the rendered styles XML.');
         }
 
         // add images to Pictures directory

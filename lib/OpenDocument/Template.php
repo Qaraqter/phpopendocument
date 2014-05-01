@@ -33,10 +33,14 @@ class Template
      */
     private $archive;
 
-    protected $contentXml;        // To store content of content.xml file
-    protected $stylesXml;       // To store content of styles.xml file
+    protected $contentXml;
+
+    protected $stylesXml;
+
     protected $tmpfile;
+
     protected $images = array();
+
     protected $vars = array();
 
     /**
@@ -61,6 +65,10 @@ class Template
         if (!$this->contentXml) {
             throw new \RunTimeException('An error occured while reading content.xml from the archive.');
         }
+        $this->stylesXml = $this->archive->getFromName('styles.xml');
+        if (!$this->stylesXml) {
+            throw new \RunTimeException('An error occured while reading styles.xml from the archive.');
+        }
         $this->archive->close();
 
         $this->generator = $generator;
@@ -80,6 +88,11 @@ class Template
     public function getContentXml()
     {
         return $this->contentXml;
+    }
+
+    public function getStylesXml()
+    {
+        return $this->stylesXml;
     }
 
     public function getCacheDir()
