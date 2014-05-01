@@ -22,11 +22,11 @@ class OpenDocumentLoader extends \Twig_Loader_Filesystem
 
     static public function fix(&$source)
     {
-        self::fixTagFormatting($source);
         self::fixAposWithinTags($source);
+        self::fixStyledTags($source);
+        self::fixTagFormatting($source);
         self::fixForLoops($source);
 //         self::fixTableRowForLoop($source);
-//         self::fixStyledTags($source);
 //         self::fixEmptyParagraphs($source);
     }
 
@@ -56,10 +56,10 @@ class OpenDocumentLoader extends \Twig_Loader_Filesystem
      */
     static public function fixAposWithinTags(&$source)
     {
-        $pattern = '/({{\s.*?\s}}|{%\s.*?\s%})/';
+        $pattern = '#{{.*?}}|{%.*?%}#s';
 
         $callback = function(array $matches) {
-            return preg_replace('/&apos;/', "'", $matches[1]);
+            return preg_replace('/&apos;/', "'", $matches[0]);
         };
 
         $source = preg_replace_callback($pattern, $callback, $source);
@@ -73,26 +73,23 @@ class OpenDocumentLoader extends \Twig_Loader_Filesystem
      * remain in the <p> element.
      *
      * An example:
-     *     <text:p text:style-name="Standard">{<text:span text:style-name="T1">chart</text:span>}</text:p>
+     *     <text:p text:style-name="Standard">{{<text:span text:style-name="T1">chart</text:span>}}</text:p>
      * becomes
-     *     <text:p text:style-name="Standard">{chart}</text:p>
+     *     <text:p text:style-name="Standard">{{chart}}</text:p>
      */
     static public function fixStyledTags(&$source)
     {
-//         $document = new \DOMDocument();
-//         $document->loadXML($source);
+        $pattern = '#({{|{%)(.*?)(%}|}})#s';
 
-//         $xpath = new \DOMXpath($document);
+        $callback = function(array $matches) {
+            if (preg_match('#[<>]#', $matches[2])) {
+                return $matches[1] . strip_tags(preg_replace('#\s#s', '', $matches[2])) . $matches[3];
+            }
 
-//         $elements = $xpath->query('/office:document-content/office:body/office:text/*');
-//         foreach ($elements as $element) {
-//             if (preg_match('/^{{.*}}$/', $element->nodeValue)
-//                 && $element->childNodes->length > 1
-//             ) {
-//                 $element->nodeValue = $element->nodeValue;
-//             }
-//         }
-//         var_dump(__FILE__, __LINE__, $source); die;
+            return $matches[0];
+        };
+
+        $source = preg_replace_callback($pattern, $callback, $source);
     }
 
     /**
@@ -103,7 +100,7 @@ class OpenDocumentLoader extends \Twig_Loader_Filesystem
      */
     static public function fixEmptyParagraphs(&$source)
     {
-        $pattern = '/\<text:p[^/>]*?\>({%.*?%})<\/text:p\>/s';
+        $pattern = '/\<text:p\s?[^/>]*?\>({%.*?%})<\/text:p\>/s';
 
         $callback = function(array $matches) {
             // no replacement if the tag contains Twig output tags
@@ -119,7 +116,7 @@ class OpenDocumentLoader extends \Twig_Loader_Filesystem
     static private function fixForLoopOpeningTags(&$source)
     {
         // opening tag
-        $pattern = '#(<text:p[^/>]*?>)(([^/>]*?)({% for .*? in .*? %})(.*?))(</text:p[^/>]*?>)#s';
+        $pattern = '#(<text:p\s?[^/>]*?>)(([^/>]*?)({% for .*? in .*? %})(.*?))(</text:p>)#s';
 
         $callback = function(array $matches) {
             // no replacement if endfor-tag is within XML-tag
@@ -141,7 +138,7 @@ class OpenDocumentLoader extends \Twig_Loader_Filesystem
     static private function fixForLoopClosingTags(&$source)
     {
         // closing tag
-        $pattern = '#(<text:p[^/>]*?>)(([^/>]*?)({% endfor %})([^/>]*?))(</text:p[^/>]*?>)#s';
+        $pattern = '#(<text:p\s?[^/>]*?>)(([^/>]*?)({% endfor %})([^/>]*?))(</text:p>)#s';
 
         $callback = function(array $matches) {
             // no replacement if for-tag is within XML-tag
@@ -164,7 +161,7 @@ class OpenDocumentLoader extends \Twig_Loader_Filesystem
     static private function fixForLoopTableRow(&$source)
     {
         // for-loops for table rows
-        $pattern = '#(<table:table-row[^/>]*?>\s*?<table:table-cell[^/>]*?>\s*?<text:p[^/>]*?>)\s*?({% for .*? in .*? %})(.*?)({% endfor %})\s*?(</text:p>\s*?</table:table-cell>\s*?</table:table-row>)#s';
+        $pattern = '#(<table:table-row\s?[^/>]*?>\s*?<table:table-cell\s?[^/>]*?>\s*?<text:p\s?[^/>]*?>)\s*?({% for .*? in .*? %})(.*?)({% endfor %})\s*?(</text:p>\s*?</table:table-cell>\s*?</table:table-row>)#s';
 
         $callback = function(array $matches) {
             // no replacement if for-loop is closed within text:p-tag
@@ -180,10 +177,9 @@ class OpenDocumentLoader extends \Twig_Loader_Filesystem
     static private function fixForLoopTable(&$source)
     {
         // for-loops for tables
-        $pattern = '#(<text:p[^/>]*?>\s*?)({% for .*? in .*? %})(.*?)(</text:p>\s*?)(<table:table[^/>]*?>.*?</table:table>)(\s*?<text:p[^/>]*?>)(.*?)({% endfor %})(\s*?</text:p>)#s';
+        $pattern = '#(<text:p\s?[^/>]*?>\s*?)({% for .*? in .*? %})(.*?)(</text:p>)(.*?)(<table:table\s?[^/>]*?>.*?</table:table>)(\s*?<text:p\s?[^/>]*?>)(.*?)({% endfor %})(\s*?</text:p>)#s';
 
         $callback = function(array $matches) {
-
             $replacement = $matches[2];
 
             // keep opening text:p-tag if it has contents
@@ -191,14 +187,14 @@ class OpenDocumentLoader extends \Twig_Loader_Filesystem
                 $replacement .= $matches[1] . $matches[3] . $matches[4];
             }
 
-            $replacement .= $matches[5];
+            $replacement .= $matches[5] . $matches[6];
 
             // keep closing text:p-tag if it has contents
-            if (trim($matches[7])) {
-                $replacement .= $matches[6] . $matches[7] . $matches[9];
+            if (trim($matches[8])) {
+                $replacement .= $matches[7] . $matches[8] . $matches[10];
             }
 
-            $replacement .= $matches[8];
+            $replacement .= $matches[9];
 
             return $replacement;
         };
@@ -214,8 +210,8 @@ class OpenDocumentLoader extends \Twig_Loader_Filesystem
      */
     static public function fixForLoops(&$source)
     {
-        self::fixForLoopTable($source);
         self::fixForLoopTableRow($source);
+        self::fixForLoopTable($source);
         self::fixForLoopOpeningTags($source);
         self::fixForLoopClosingTags($source);
     }
@@ -228,7 +224,7 @@ class OpenDocumentLoader extends \Twig_Loader_Filesystem
      */
     static public function fixTableRowForLoop(&$source)
     {
-        $pattern = '#(<table:table-row[^/>]*?>\s*<table:table-cell[^/>]*?>\s*<text:p[^/>]*?>\s*)({% for .*? in .*? %})\s*(.*?)\s*({% endfor %})(\s*<\/text:p>\s*<\/table:table-cell>\s*<\/table:table-row>)#s';
+        $pattern = '#(<table:table-row\s?[^/>]*?>\s*<table:table-cell\s?[^/>]*?>\s*<text:p\s?[^/>]*?>\s*)({% for .*? in .*? %})\s*(.*?)\s*({% endfor %})(\s*<\/text:p>\s*<\/table:table-cell>\s*<\/table:table-row>)#s';
 
         $callback = function(array $matches) {
             return $matches[2] . $matches[1] . $matches[3] . $matches[5] . $matches[4];

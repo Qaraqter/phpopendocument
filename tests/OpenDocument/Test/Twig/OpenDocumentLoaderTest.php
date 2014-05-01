@@ -25,6 +25,15 @@ class OpenDocumentLoaderTest extends \PHPUnit_Framework_TestCase
     }
 
     /**
+     * @dataProvider providerFixStyleTags
+     */
+    public function testFixStyleTags($source, $expected)
+    {
+        OpenDocumentLoader::fix($source);
+        $this->assertEquals($expected, $source);
+    }
+
+    /**
      * @dataProvider providerFixForLoops
      */
     public function testFixForLoops($source, $expected)
@@ -173,20 +182,20 @@ class OpenDocumentLoaderTest extends \PHPUnit_Framework_TestCase
         $document->loadXML($rendered);
     }
 
-//     public function testKoeKompasDierenartsComplete()
-//     {
-//         $templateDir = realpath(dirname(__FILE__) . '/../../../data/koekompas-dierenarts');
+    public function testKoeKompasDierenartsComplete()
+    {
+        $templateDir = realpath(dirname(__FILE__) . '/../../../data/koekompas-dierenarts');
 
-//         // load original template
-//         $template = 'complete.xml';
-//         $loader = new OpenDocumentLoader(array($templateDir));
-//         $source = $loader->getSource($template);
+        // load original template
+        $template = 'complete.xml';
+        $loader = new OpenDocumentLoader(array($templateDir));
+        $source = $loader->getSource($template);
 
-//         // load fixed template
-//         $fixed = file_get_contents($templateDir . '/complete-fixed.xml');
+        // load fixed template
+        $fixed = file_get_contents($templateDir . '/complete-fixed.xml');
 
-//         $this->assertEquals($fixed, $source);
-//     }
+        $this->assertEquals($fixed, $source);
+    }
 
     public function providerFixTagFormatting()
     {
@@ -206,6 +215,51 @@ class OpenDocumentLoaderTest extends \PHPUnit_Framework_TestCase
 
         $source = '<text:p text:style-name="Standard">{%image()%}</text:p>';
         $expected = '<text:p text:style-name="Standard">{% image() %}</text:p>';
+        $data[] = array($source, $expected);
+
+        return $data;
+    }
+
+    public function providerFixStyleTags()
+    {
+        $data = array();
+
+        $source = <<<XML
+<table:table-row>
+    <table:table-cell table:style-name="Table4.A2" office:value-type="string">
+        <text:p text:style-name="Text_20_body">{% for item in summary %}{{ item.title }}</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="Table4.B2" office:value-type="string">
+        <text:p text:style-name="Text_20_body">{{ image(item.chart<text:span text:style-name="T3">,{width:&apos;100%&apos;}</text:span>) }}{% endfor %}</text:p>
+    </table:table-cell>
+</table:table-row>
+XML;
+
+        $expected = <<<XML
+{% for item in summary %}<table:table-row>
+    <table:table-cell table:style-name="Table4.A2" office:value-type="string">
+        <text:p text:style-name="Text_20_body">{{ item.title }}</text:p>
+    </table:table-cell>
+    <table:table-cell table:style-name="Table4.B2" office:value-type="string">
+        <text:p text:style-name="Text_20_body">{{ image(item.chart,{width:'100%'}) }}</text:p>
+    </table:table-cell>
+</table:table-row>{% endfor %}
+XML;
+
+        $data[] = array($source, $expected);
+
+        $source = <<<XML
+<text:p text:style-name="Text_20_body">
+    {{ image(item.chart
+    <text:span text:style-name="T3">,{width:&apos;100%&apos;}</text:span>
+    ) }}
+</text:p>
+XML;
+        $expected = <<<XML
+<text:p text:style-name="Text_20_body">
+    {{ image(item.chart,{width:'100%'}) }}
+</text:p>
+XML;
         $data[] = array($source, $expected);
 
         return $data;
@@ -355,7 +409,8 @@ XML;
 XML;
 
         $expected = <<<XML
-{% for row in rows %}<table:table>
+{% for row in rows %}
+<table:table>
 </table:table>{% endfor %}
 XML;
 
@@ -384,7 +439,8 @@ XML;
 XML;
 
         $expected = <<<XML
-{% for row in rows %}<table:table>
+{% for row in rows %}
+<table:table>
 </table:table>
 <text:p>{{ row.title }}</text:p>{% endfor %}
 XML;
@@ -477,6 +533,105 @@ XML;
     </table:table-row>{% endfor %}
 </table:table>{% endfor %}
 <text:p text:style-name="Text_20_body" />
+XML;
+
+        $data[] = array($source, $expected);
+
+        $source = <<<XML
+<table:table table:name="Table4" table:style-name="Table4">
+    <table:table-column table:style-name="Table4.A" />
+    <table:table-column table:style-name="Table4.B" />
+    <table:table-row>
+        <table:table-cell table:style-name="Table4.A1" table:number-columns-spanned="2" office:value-type="string">
+            <text:p text:style-name="Text_20_body">Eindscore per onderdeel</text:p>
+        </table:table-cell>
+        <table:covered-table-cell />
+    </table:table-row>
+    <table:table-row>
+        <table:table-cell table:style-name="Table4.A2" office:value-type="string">
+            <text:p text:style-name="Text_20_body">{% for item in summary %}{{ item.title }}</text:p>
+        </table:table-cell>
+        <table:table-cell table:style-name="Table4.B2" office:value-type="string">
+            <text:p text:style-name="Text_20_body">{{ image(item.chart<text:span text:style-name="T3">,{width:&apos;100%&apos;}</text:span>) }}{% endfor %}</text:p>
+        </table:table-cell>
+    </table:table-row>
+</table:table>
+XML;
+
+        $expected = <<<XML
+<table:table table:name="Table4" table:style-name="Table4">
+    <table:table-column table:style-name="Table4.A" />
+    <table:table-column table:style-name="Table4.B" />
+    <table:table-row>
+        <table:table-cell table:style-name="Table4.A1" table:number-columns-spanned="2" office:value-type="string">
+            <text:p text:style-name="Text_20_body">Eindscore per onderdeel</text:p>
+        </table:table-cell>
+        <table:covered-table-cell />
+    </table:table-row>
+    {% for item in summary %}<table:table-row>
+        <table:table-cell table:style-name="Table4.A2" office:value-type="string">
+            <text:p text:style-name="Text_20_body">{{ item.title }}</text:p>
+        </table:table-cell>
+        <table:table-cell table:style-name="Table4.B2" office:value-type="string">
+            <text:p text:style-name="Text_20_body">{{ image(item.chart,{width:'100%'}) }}</text:p>
+        </table:table-cell>
+    </table:table-row>{% endfor %}
+</table:table>
+XML;
+
+        $data[] = array($source, $expected);
+
+        $source = <<<XML
+<table:table table:name="Table4" table:style-name="Table4">
+    <table:table-column table:style-name="Table4.A" />
+    <table:table-column table:style-name="Table4.B" />
+    <table:table-row>
+        <table:table-cell table:style-name="Table4.A1"
+            table:number-columns-spanned="2" office:value-type="string">
+            <text:p text:style-name="Text_20_body">Eindscore per onderdeel</text:p>
+        </table:table-cell>
+        <table:covered-table-cell />
+    </table:table-row>
+    <table:table-row>
+        <table:table-cell table:style-name="Table4.A2"
+            office:value-type="string">
+            <text:p text:style-name="Text_20_body">{% for item in summary %}{{ item.title }}</text:p>
+        </table:table-cell>
+        <table:table-cell table:style-name="Table4.B2"
+            office:value-type="string">
+            <text:p text:style-name="Text_20_body">
+                {{ image(item.chart
+                <text:span text:style-name="T3">,{width:&apos;100%&apos;}
+                </text:span>
+                ) }}{% endfor %}
+            </text:p>
+        </table:table-cell>
+    </table:table-row>
+</table:table>
+XML;
+        $expected = <<<XML
+<table:table table:name="Table4" table:style-name="Table4">
+    <table:table-column table:style-name="Table4.A" />
+    <table:table-column table:style-name="Table4.B" />
+    <table:table-row>
+        <table:table-cell table:style-name="Table4.A1"
+            table:number-columns-spanned="2" office:value-type="string">
+            <text:p text:style-name="Text_20_body">Eindscore per onderdeel</text:p>
+        </table:table-cell>
+        <table:covered-table-cell />
+    </table:table-row>
+    {% for item in summary %}<table:table-row>
+        <table:table-cell table:style-name="Table4.A2"
+            office:value-type="string">
+            <text:p text:style-name="Text_20_body">{{ item.title }}</text:p>
+        </table:table-cell>
+        <table:table-cell table:style-name="Table4.B2"
+            office:value-type="string">
+            <text:p text:style-name="Text_20_body">
+                {{ image(item.chart,{width:'100%'}) }}</text:p>
+        </table:table-cell>
+    </table:table-row>{% endfor %}
+</table:table>
 XML;
 
         $data[] = array($source, $expected);
