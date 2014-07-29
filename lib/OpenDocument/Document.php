@@ -35,13 +35,6 @@ class Document
     private $cacheDir;
 
     /**
-     * The Open Document file (which in fact is a zipped archive).
-     *
-     * @var \ZipArchive
-     */
-    private $archive;
-
-    /**
      * The content XML.
      *
      * @var string
@@ -79,32 +72,21 @@ class Document
         $this->generator  = $generator;
         $this->template   = $generator->getTemplate();
         $this->cacheDir   = $generator->getCacheDir();
+
         $this->contentXml = $this->template->getContentXml();
         $this->stylesXml  = $this->template->getStylesXml();
+
         $this->filesystem = new Filesystem();
 
-        // create copy of template
-        $this->filename = tempnam($this->cacheDir, 'opendocument_');
-        $this->filesystem->copy(
-            $this->template->getFileName(),
-            $this->filename,
-            true
-        );
-
-        // open archive
-        $this->archive = new \ZipArchive();
-        $this->archive->open($this->filename);
+        $this->filename = tempnam($this->cacheDir, 'working_copy_');
+        $this->filesystem->copy($this->template->getFileName(), $this->filename, true);
     }
-
 
     /**
      * Deletes the temporary file.
      */
     public function __destruct()
     {
-        // close archive
-        $this->archive->close();
-
 //         if (file_exists($this->filename)) {
 //             unlink($this->tmpFile);
 //         }
@@ -176,42 +158,49 @@ class Document
      */
     public function save($filename = null, $override = false)
     {
-        if (! $this->archive->addFromString('content.xml', $this->contentXml)) {
+        // open archive
+        $archive = new \ZipArchive();
+        $archive->open($this->filename);
+
+        if (! $archive->addFromString('content.xml', $this->contentXml)) {
             throw new \RuntimeException('An error occured while writing the rendered content XML.');
         }
 
-        if (! $this->archive->addFromString('styles.xml', $this->stylesXml)) {
+        if (! $archive->addFromString('styles.xml', $this->stylesXml)) {
             throw new \RuntimeException('An error occured while writing the rendered styles XML.');
         }
 
         // add images to Pictures directory
         $images = $this->generator->getTwig()->getExtension('open_document')->getImages();
         foreach ($images as $image) {
-            $this->archive->addFile("$this->cacheDir/$image", "Pictures/$image");
+            $archive->addFile("$this->cacheDir/$image", "Pictures/$image");
         }
 
         // add images to manifest XML
-        $manifest = $this->archive->getFromName('META-INF/manifest.xml');
+        $manifest = $archive->getFromName('META-INF/manifest.xml');
         $tempFile = md5($manifest);
         if (! $this->filesystem->exists("$this->cacheDir/$tempFile")) {
             $this->filesystem->dumpFile("$this->cacheDir/$tempFile", $manifest);
         }
 
-        $document = new \DomDocument();
-        $document->loadXml(file_get_contents("$this->cacheDir/$tempFile"));
-        $rootElement = $document->getElementsByTagName('manifest')->item(0);
+        $dom = new \DomDocument();
+        $dom->loadXml(file_get_contents("$this->cacheDir/$tempFile"));
+        $rootElement = $dom->getElementsByTagName('manifest')->item(0);
         foreach ($images as $image) {
-            $element = $document->createElement('manifest:file-entry');
+            $element = $dom->createElement('manifest:file-entry');
             $element->setAttribute('manifest:full-path', "Pictures/$image");
             $element->setAttribute('manifest:media-type', '');
             $rootElement->appendChild($element);
         }
-        $this->archive->addFromString('META-INF/manifest.xml', $document->saveXML());
+        $archive->addFromString('META-INF/manifest.xml', $dom->saveXML());
 
+        // close archive
+        $archive->close();
+
+        // copy to given filename (if any)
         if ($filename) {
-            $this->archive->close();
             $this->filesystem->copy($this->filename, $filename, $override);
-            $this->archive->open($this->filename);
+            $this->filesystem->chmod($filename, 0666);
         }
     }
 }
