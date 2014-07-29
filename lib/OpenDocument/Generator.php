@@ -51,19 +51,34 @@ class Generator
     public function loadTemplate($filename)
     {
         $this->template = new Template($this, $filename);
+        $this->document = new Document($this);
     }
 
+    /**
+     * Returns the loaded template.
+     *
+     * @return \OpenDocument\Template
+     */
     public function getTemplate()
     {
         return $this->template;
     }
 
+    /**
+     * Returns the document to work on.
+     *
+     * @return \OpenDocument\Document
+     */
+    public function getDocument()
+    {
+        return $this->document;
+    }
+
     public function render($data = array())
     {
-        $document = new Document($this);
-        $document->render($data);
+        $this->document->render($data);
 
-        return $document;
+        return $this->document;
     }
 
     public function getCacheDir()

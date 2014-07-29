@@ -4,6 +4,7 @@ namespace OpenDocument;
 
 use OpenDocument\Exception\InvalidCacheDirectoryException;
 use OpenDocument\Twig\OpenDocumentLoader;
+use Symfony\Component\Filesystem\Filesystem;
 
 /**
  * Class representing an Open Document file.
@@ -166,29 +167,5 @@ class Template
 
         // close archive
         $this->archive->close();
-    }
-
-    /**
-     * Export the file as attached file by HTTP
-     *
-     * @param string $name (optionnal)
-     * @throws OdfException
-     * @return void
-     */
-    public function exportAsAttachedFile($name="")
-    {
-        $this->_save();
-        if (headers_sent($filename, $linenum)) {
-            throw new OdfException("headers already sent ($filename at $linenum)");
-        }
-
-        if( $name == "" )
-        {
-                $name = md5(uniqid()) . ".odt";
-        }
-
-        header('Content-type: application/vnd.oasis.opendocument.text');
-        header('Content-Disposition: attachment; filename="'.$name.'"');
-        readfile($this->tmpfile);
     }
 }

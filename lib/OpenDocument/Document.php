@@ -4,6 +4,7 @@ namespace OpenDocument;
 
 use OpenDocument\Exception\InvalidCacheDirectoryException;
 use OpenDocument\Twig\OpenDocumentLoader;
+use Symfony\Component\Filesystem\Filesystem;
 
 /**
  * Class representing an Open Document file.
@@ -27,27 +28,44 @@ class Document
     private $filename;
 
     /**
+     * Cache directory.
+     *
+     * @var string
+     */
+    private $cacheDir;
+
+    /**
      * The Open Document file (which in fact is a zipped archive).
      *
      * @var \ZipArchive
      */
     private $archive;
 
-    protected $contentXml;        // To store content of content.xml file
-    protected $stylesXml;       // To store content of styles.xml file
-    protected $tmpFile;
-    protected $images = array();
-    protected $vars = array();
+    /**
+     * The content XML.
+     *
+     * @var string
+     */
+    protected $contentXml;
 
     /**
-     * Deletes the temporary file.
+     * The styles XML.
+     *
+     * @var string
      */
-    public function __destruct()
-    {
-        if (file_exists($this->tmpFile)) {
-//             unlink($this->tmpFile);
-        }
-    }
+    protected $stylesXml;
+
+    /**
+     * Collection of images.
+     *
+     * @var array
+     */
+    protected $images = array();
+
+    /**
+     * @var \Symfony\Component\Filesystem\Filesystem
+     */
+    protected $filesystem;
 
     /**
      * Class constructor
@@ -60,32 +78,36 @@ class Document
     {
         $this->generator  = $generator;
         $this->template   = $generator->getTemplate();
+        $this->cacheDir   = $generator->getCacheDir();
         $this->contentXml = $this->template->getContentXml();
         $this->stylesXml  = $this->template->getStylesXml();
+        $this->filesystem = new Filesystem();
 
         // create copy of template
-        $this->cacheDir = $generator->getCacheDir();
-        $templateFilename = $this->template->getFileName();
-        $this->tmpFile = tempnam($this->cacheDir, md5($templateFilename));
-        copy($templateFilename, $this->tmpFile);
+        $this->filename = tempnam($this->cacheDir, 'opendocument_');
+        $this->filesystem->copy(
+            $this->template->getFileName(),
+            $this->filename,
+            true
+        );
 
+        // open archive
         $this->archive = new \ZipArchive();
+        $this->archive->open($this->filename);
     }
 
-    public function render($data = array())
+
+    /**
+     * Deletes the temporary file.
+     */
+    public function __destruct()
     {
-        $twig       = $this->generator->getTwig();
-        $cacheDir   = $this->generator->getCacheDir();
+        // close archive
+        $this->archive->close();
 
-        // render content
-        $template = md5($this->contentXml);
-        file_put_contents("$cacheDir/$template", $this->contentXml);
-        $this->contentXml = $twig->render($template, $data);
-
-        // render styles
-        $template = md5($this->stylesXml);
-        file_put_contents("$cacheDir/$template", $this->stylesXml);
-        $this->stylesXml = $twig->render($template, $data);
+//         if (file_exists($this->filename)) {
+//             unlink($this->tmpFile);
+//         }
     }
 
     public function getCacheDir()
@@ -93,52 +115,72 @@ class Document
         return $this->cacheDir;
     }
 
-    public function save($filename)
-    {
-        $this->filename = $this->tmpFile;
-        $this->saveToDisk($filename);
-
-        return $this;
-    }
-
     public function getFilename()
     {
         return $this->filename;
     }
 
-    /**
-     * Save the odt file on the disk
-     *
-     * @param string $file name of the desired file
-     * @throws OdfException
-     * @return void
-     */
-    public function saveToDisk($file = null)
+    public function setContentXml($contentXml)
     {
-        if ($file !== null && is_string($file)) {
-            if (file_exists($file) && !(is_file($file) && is_writable($file))) {
-                throw new OdfException('Permission denied : can\'t create ' . $file);
-            }
-            $this->_save();
-//             copy($this->tmpFile, $file);
-        } else {
-            $this->_save();
+        $this->contentXml = $contentXml;
+
+        return $this;
+    }
+
+    public function setStylesXml($stylesXml)
+    {
+        $this->stylesXml = $stylesXml;
+
+        return $this;
+    }
+
+    public function render($data = array())
+    {
+        $this->renderContent($data);
+        $this->renderStyles($data);
+        $this->save();
+    }
+
+    private function renderContent($data = array())
+    {
+        $tempFile = md5($this->contentXml);
+
+        // put content XML in temporary file
+        if (! $this->filesystem->exists("$this->cacheDir/$tempFile")) {
+            $this->filesystem->dumpFile("$this->cacheDir/$tempFile", $this->contentXml);
         }
+
+        // render content XML
+        $twig = $this->generator->getTwig();
+        $this->contentXml = $twig->render($tempFile, $data);
+    }
+
+    private function renderStyles($data = array())
+    {
+        $tempFile = md5($this->stylesXml);
+
+        // put styles XML in temporary file
+        if (! $this->filesystem->exists("$this->cacheDir/$tempFile")) {
+            $this->filesystem->dumpFile("$this->cacheDir/$tempFile", $this->stylesXml);
+        }
+
+        // render styles XML
+        $twig = $this->generator->getTwig();
+        $this->stylesXml = $twig->render($tempFile, $data);
     }
 
     /**
-     * Internal save
+     * Saves the archive.
      *
      * @throws \RuntimeException
      */
-    private function _save()
+    public function save($filename = null, $override = false)
     {
-        // open temporary archive and put rendered in it
-        $this->archive->open($this->tmpFile);
-        if (!$this->archive->addFromString('content.xml', $this->contentXml)) {
-             throw new \RuntimeException('An error occured while writing the rendered content XML.');
+        if (! $this->archive->addFromString('content.xml', $this->contentXml)) {
+            throw new \RuntimeException('An error occured while writing the rendered content XML.');
         }
-        if (!$this->archive->addFromString('styles.xml', $this->stylesXml)) {
+
+        if (! $this->archive->addFromString('styles.xml', $this->stylesXml)) {
             throw new \RuntimeException('An error occured while writing the rendered styles XML.');
         }
 
@@ -150,11 +192,13 @@ class Document
 
         // add images to manifest XML
         $manifest = $this->archive->getFromName('META-INF/manifest.xml');
-        $tmpManifestFile = md5($manifest);
-        file_put_contents("$this->cacheDir/$tmpManifestFile", $manifest);
+        $tempFile = md5($manifest);
+        if (! $this->filesystem->exists("$this->cacheDir/$tempFile")) {
+            $this->filesystem->dumpFile("$this->cacheDir/$tempFile", $manifest);
+        }
 
         $document = new \DomDocument();
-        $document->loadXml(file_get_contents("$this->cacheDir/$tmpManifestFile"));
+        $document->loadXml(file_get_contents("$this->cacheDir/$tempFile"));
         $rootElement = $document->getElementsByTagName('manifest')->item(0);
         foreach ($images as $image) {
             $element = $document->createElement('manifest:file-entry');
@@ -164,31 +208,10 @@ class Document
         }
         $this->archive->addFromString('META-INF/manifest.xml', $document->saveXML());
 
-        // close archive
-        $this->archive->close();
-    }
-
-    /**
-     * Export the file as attached file by HTTP
-     *
-     * @param string $name (optionnal)
-     * @throws OdfException
-     * @return void
-     */
-    public function exportAsAttachedFile($name="")
-    {
-        $this->_save();
-        if (headers_sent($filename, $linenum)) {
-            throw new OdfException("headers already sent ($filename at $linenum)");
+        if ($filename) {
+            $this->archive->close();
+            $this->filesystem->copy($this->filename, $filename, $override);
+            $this->archive->open($this->filename);
         }
-
-        if( $name == "" )
-        {
-                $name = md5(uniqid()) . ".odt";
-        }
-
-        header('Content-type: application/vnd.oasis.opendocument.text');
-        header('Content-Disposition: attachment; filename="'.$name.'"');
-        readfile($this->tmpFile);
     }
 }
