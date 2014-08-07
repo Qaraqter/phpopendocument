@@ -79,9 +79,9 @@ class OpenDocumentExtension extends \Twig_Extension
         // create image frame
         $frame = $document->createElement('draw:frame');
         $frame->setAttribute('draw:name', $imageName);
-        $frame->setAttribute('draw:style-name', 'fr1');
+//         $frame->setAttribute('draw:style-name', 'fr1');
         $frame->setAttribute('text:anchor-type', 'paragraph');
-        $frame->setAttribute('draw:z-index', '0');
+//         $frame->setAttribute('draw:z-index', '0');
         $document->appendChild($frame);
 
         // set original image size
