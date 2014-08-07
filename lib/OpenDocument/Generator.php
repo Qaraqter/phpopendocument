@@ -38,6 +38,11 @@ class Generator
         $this->setCacheDir($cacheDir);
     }
 
+    public function __destruct()
+    {
+        $this->twig->clearTemplateCache();
+    }
+
     public function getTwig()
     {
         return $this->twig;

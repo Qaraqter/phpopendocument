@@ -60,6 +60,8 @@ class Document
      */
     protected $filesystem;
 
+    protected $tempFiles = array();
+
     /**
      * Class constructor
      *
@@ -87,9 +89,13 @@ class Document
      */
     public function __destruct()
     {
-//         if (file_exists($this->filename)) {
-//             unlink($this->tmpFile);
-//         }
+        if (file_exists($this->filename)) {
+            unlink($this->filename);
+        }
+
+        foreach ($this->tempFiles as $file) {
+            $this->filesystem->remove($file);
+        }
     }
 
     public function getCacheDir()
@@ -126,10 +132,12 @@ class Document
     private function renderContent($data = array())
     {
         $tempFile = md5($this->contentXml);
+        $fullPath = "$this->cacheDir/$tempFile";
 
         // put content XML in temporary file
-        if (! $this->filesystem->exists("$this->cacheDir/$tempFile")) {
-            $this->filesystem->dumpFile("$this->cacheDir/$tempFile", $this->contentXml);
+        if (! $this->filesystem->exists($fullPath)) {
+            $this->filesystem->dumpFile($fullPath, $this->contentXml);
+            $this->tempFiles[] = $fullPath;
         }
 
         // render content XML
@@ -140,10 +148,12 @@ class Document
     private function renderStyles($data = array())
     {
         $tempFile = md5($this->stylesXml);
+        $fullPath = "$this->cacheDir/$tempFile";
 
         // put styles XML in temporary file
-        if (! $this->filesystem->exists("$this->cacheDir/$tempFile")) {
-            $this->filesystem->dumpFile("$this->cacheDir/$tempFile", $this->stylesXml);
+        if (! $this->filesystem->exists($fullPath)) {
+            $this->filesystem->dumpFile($fullPath, $this->stylesXml);
+            $this->tempFiles[] = $fullPath;
         }
 
         // render styles XML
@@ -179,8 +189,11 @@ class Document
         // add images to manifest XML
         $manifest = $archive->getFromName('META-INF/manifest.xml');
         $tempFile = md5($manifest);
-        if (! $this->filesystem->exists("$this->cacheDir/$tempFile")) {
-            $this->filesystem->dumpFile("$this->cacheDir/$tempFile", $manifest);
+        $fullPath = "$this->cacheDir/$tempFile";
+
+        if (! $this->filesystem->exists($fullPath)) {
+            $this->filesystem->dumpFile($fullPath, $manifest);
+            $this->tempFiles[] = $fullPath;
         }
 
         $dom = new \DomDocument();
