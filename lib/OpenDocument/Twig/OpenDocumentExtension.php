@@ -128,14 +128,19 @@ class OpenDocumentExtension extends \Twig_Extension
     {
         $pathInfo = pathinfo($filename);
 
-        if ($pathInfo['extension'] == 'svg') {
+        // try to get image size
+        $size = getimagesize($filename);
+        if ($size) {
+            list ($width, $height) = $size;
+        } elseif(@simplexml_load_string(file_get_contents($filename))) {
+            // assume this is a SVG
             $document = new \DomDocument();
-            $document->loadXml(file_get_contents($filename));
+            @$document->loadXml(file_get_contents($filename));
             $width  = $document->lastChild->getAttribute('width');
             $height = $document->lastChild->getAttribute('height');
         } else {
-            $size = getimagesize($filename);
-            list ($width, $height) = $size;
+            $width = 600;
+            $height = 400;
         }
 
         $width  = number_format($width * self::PIXEL_TO_CM, 2) . 'cm';
