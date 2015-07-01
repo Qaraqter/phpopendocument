@@ -39,14 +39,16 @@ class OpenDocumentExtension extends \Twig_Extension
     {
         // save a local copy of the image if $filename is an URL
         $urlInfo = parse_url($filename);
-        if (key_exists('scheme', $urlInfo) && preg_match('/^http/', $urlInfo['scheme'])) {
-            if (!$environment->getCache()) {
-                throw new \RuntimeException('To use URLs as image filename caching must be enabled for the Twig Environment.');
+        if (key_exists('scheme', $urlInfo)) {
+            if (preg_match('/^file/', $urlInfo['scheme']) || preg_match('/^http/', $urlInfo['scheme'])) {
+                if (!$environment->getCache()) {
+                    throw new \RuntimeException('To use URLs as image filename caching must be enabled for the Twig Environment.');
+                }
+                $cacheFilename = $environment->getCache() . '/' . basename($urlInfo['path']);
+                copy($filename, $cacheFilename);
+                $filename = $cacheFilename;
+                $this->cacheFiles[] = $filename;
             }
-            $cacheFilename = $environment->getCache() . '/' . basename($urlInfo['path']);
-            copy($filename, $cacheFilename);
-            $filename = $cacheFilename;
-            $this->cacheFiles[] = $filename;
         }
 
         $filename = realpath($filename);
@@ -132,7 +134,7 @@ class OpenDocumentExtension extends \Twig_Extension
         $size = getimagesize($filename);
         if ($size) {
             list ($width, $height) = $size;
-        } elseif(@simplexml_load_string(file_get_contents($filename))) {
+        } elseif (@simplexml_load_string(file_get_contents($filename))) {
             // assume this is a SVG
             $document = new \DomDocument();
             @$document->loadXml(file_get_contents($filename));

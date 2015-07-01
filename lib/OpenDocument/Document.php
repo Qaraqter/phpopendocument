@@ -182,6 +182,7 @@ class Document
 
         // add images to Pictures directory
         $images = $this->generator->getTwig()->getExtension('open_document')->getImages();
+
         foreach ($images as $image) {
             $archive->addFile("$this->cacheDir/$image", "Pictures/$image");
         }
